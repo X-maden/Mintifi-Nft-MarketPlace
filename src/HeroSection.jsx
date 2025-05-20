@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import Img1NFT from "../src/assets/img1nft.avif";
 import Img2NFT from "../src/assets/img2nft.avif";
 import Img3NFT from "../src/assets/img3nft.avif";
@@ -10,34 +10,53 @@ import Img8NFT from "../src/assets/img8nft.jpg";
 import Img9NFT from "../src/assets/img9nft.jpg";
 import Img10NFT from "../src/assets/img10nft.jpg";
 
+// Move NFT images data outside component
+const NFT_IMAGES = [
+  { src: Img1NFT, title: "Premium NFT", subtitle: "Exclusive Art Collection" },
+  { src: Img2NFT, title: "Featured NFT", subtitle: "Digital Masterpiece" },
+  { src: Img3NFT, title: "Featured NFT", subtitle: "Digital Masterpiece" },
+  { src: Img4NFT, title: "Featured NFT", subtitle: "Digital Masterpiece" },
+  { src: Img5NFT, title: "Featured NFT", subtitle: "Digital Masterpiece" },
+  { src: Img6NFT, title: "Featured NFT", subtitle: "Digital Masterpiece" },
+  { src: Img7NFT, title: "Featured NFT", subtitle: "Digital Masterpiece" },
+  { src: Img8NFT, title: "Featured NFT", subtitle: "Digital Masterpiece" },
+  { src: Img9NFT, title: "Featured NFT", subtitle: "Digital Masterpiece" },
+  { src: Img10NFT, title: "Featured NFT", subtitle: "Digital Masterpiece" },
+];
+
+const ROTATION_INTERVAL = 3000; // 3 seconds
 
 export default function HeroSection() {
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   
-  // Using the imported NFT image and placeholders for others
-  const nftImages = [
-    Img1NFT,
-    Img2NFT,
-    Img3NFT,
-    Img4NFT,
-    Img5NFT,
-    Img6NFT,
-    Img7NFT,
-    Img8NFT,
-    Img9NFT,
-    Img10NFT,
-  ];
-
-  // Image rotation effect
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setCurrentImageIndex((prevIndex) => 
-        prevIndex === nftImages.length - 1 ? 0 : prevIndex + 1
-      );
-    }, 3000); // Change image every 3 seconds
-    
-    return () => clearInterval(interval);
+  // Memoize image rotation handler
+  const rotateImage = useCallback(() => {
+    setCurrentImageIndex(prevIndex => 
+      prevIndex === NFT_IMAGES.length - 1 ? 0 : prevIndex + 1
+    );
   }, []);
+
+  // Set up image rotation interval
+  useEffect(() => {
+    const interval = setInterval(rotateImage, ROTATION_INTERVAL);
+    return () => clearInterval(interval);
+  }, [rotateImage]);
+
+  // Memoize carousel dots
+  const CarouselDots = useMemo(() => (
+    <div className="absolute -bottom-10 left-1/2 transform -translate-x-1/2 flex space-x-2">
+      {NFT_IMAGES.map((_, index) => (
+        <button
+          key={index}
+          onClick={() => setCurrentImageIndex(index)}
+          className={`w-3 h-3 rounded-full transition-all ${
+            index === currentImageIndex ? 'bg-purple-400 w-6' : 'bg-gray-400 bg-opacity-50'
+          }`}
+          aria-label={`Go to slide ${index + 1}`}
+        />
+      ))}
+    </div>
+  ), [currentImageIndex]);
 
   return (
     <div>
@@ -52,10 +71,16 @@ export default function HeroSection() {
               Discover, collect, and trade extraordinary NFTs in the most innovative marketplace
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center md:justify-start">
-              <button className="px-8 py-3 bg-gradient-to-r from-pink-500 to-purple-500 rounded-lg text-white font-semibold hover:opacity-90 transition">
+              <button 
+                className="px-8 py-3 bg-gradient-to-r from-pink-500 to-purple-500 rounded-lg text-white font-semibold hover:opacity-90 transition"
+                aria-label="Explore Collection"
+              >
                 Explore Collection
               </button>
-              <button className="px-8 py-3 bg-transparent border-2 border-purple-400 rounded-lg text-white font-semibold hover:bg-purple-800/30 transition">
+              <button 
+                className="px-8 py-3 bg-transparent border-2 border-purple-400 rounded-lg text-white font-semibold hover:bg-purple-800/30 transition"
+                aria-label="Create NFT"
+              >
                 Create NFT
               </button>
             </div>
@@ -65,7 +90,7 @@ export default function HeroSection() {
           <div className="w-full md:w-1/2 mt-8 md:mt-0">
             <div className="relative w-full aspect-square max-w-lg mx-auto">
               {/* Images */}
-              {nftImages.map((src, index) => (
+              {NFT_IMAGES.map((image, index) => (
                 <div 
                   key={index}
                   className={`absolute inset-0 rounded-2xl overflow-hidden shadow-2xl transform transition-all duration-1000 ${
@@ -75,17 +100,18 @@ export default function HeroSection() {
                   }`}
                 >
                   <img 
-                    src={src} 
-                    alt={`Featured NFT ${index + 1}`}
-                    className="w-full h-full object-cover" 
+                    src={image.src} 
+                    alt={`${image.title} ${index + 1}`}
+                    className="w-full h-full object-cover"
+                    loading={index === 0 ? "eager" : "lazy"}
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent flex items-end p-6">
                     <div className="text-white">
                       <p className="text-sm font-semibold text-purple-300">
-                        {index === 0 ? "Premium NFT" : `Featured NFT`}
+                        {image.title}
                       </p>
                       <h3 className="text-xl font-bold">
-                        {index === 0 ? "Exclusive Art Collection" : "Digital Masterpiece"}
+                        {image.subtitle}
                       </h3>
                     </div>
                   </div>
@@ -93,18 +119,7 @@ export default function HeroSection() {
               ))}
               
               {/* Indicator dots */}
-              <div className="absolute -bottom-10 left-1/2 transform -translate-x-1/2 flex space-x-2">
-                {nftImages.map((_, index) => (
-                  <button
-                    key={index}
-                    onClick={() => setCurrentImageIndex(index)}
-                    className={`w-3 h-3 rounded-full transition-all ${
-                      index === currentImageIndex ? 'bg-purple-400 w-6' : 'bg-gray-400 bg-opacity-50'
-                    }`}
-                    aria-label={`Go to slide ${index + 1}`}
-                  />
-                ))}
-              </div>
+              {CarouselDots}
             </div>
           </div>
         </div>

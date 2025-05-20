@@ -1,7 +1,49 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { BrowserProvider, parseEther } from "ethers"; // Ethers v6+ import
 import Logo from "../src/assets/mintifi.png";
 import { useCart } from "./CartContext";
+
+// Move icons outside component to prevent recreation
+const icons = {
+  home: (
+    <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+    </svg>
+  ),
+  search: (
+    <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+    </svg>
+  ),
+  about: (
+    <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+    </svg>
+  ),
+  cart: (
+    <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
+    </svg>
+  ),
+  wallet: (
+    <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
+    </svg>
+  ),
+  menu: (
+    <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+    </svg>
+  ),
+  close: (
+    <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+    </svg>
+  )
+};
+
+// Constants
+const OWNER_ADDRESS = "0xf7F8Ef8411da7821E4E4c9f03E9CaBa86006c687";
 
 export default function Navbar({ onBuy }) {
   const [scrolled, setScrolled] = useState(false);
@@ -12,74 +54,54 @@ export default function Navbar({ onBuy }) {
   const [buying, setBuying] = useState(false);
   const { cart, clearCart, getCartTotal, removeFromCart } = useCart();
 
-  // Specify the website owner's address here
-  const OWNER_ADDRESS = "0xf7F8Ef8411da7821E4E4c9f03E9CaBa86006c687"; // Replace with actual address
+  // Memoize scroll handler
+  const handleScroll = useCallback(() => {
+    const isScrolled = window.scrollY > 10;
+    setScrolled(isScrolled);
+  }, []);
 
   useEffect(() => {
-    const handleScroll = () => {
-      const isScrolled = window.scrollY > 10;
-      if (isScrolled !== scrolled) {
-        setScrolled(isScrolled);
-      }
-    };
-
     window.addEventListener('scroll', handleScroll);
-    return () => {
-      window.removeEventListener('scroll', handleScroll);
-    };
-  }, [scrolled]);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, [handleScroll]);
 
-  const toggleMobileMenu = () => {
-    setMobileMenuOpen(!mobileMenuOpen);
-  };
+  const toggleMobileMenu = useCallback(() => {
+    setMobileMenuOpen(prev => !prev);
+  }, []);
 
-  const handleConnectWallet = async () => {
-    if (window.ethereum) {
-      try {
-        // Use Ethers.js v6+ to request accounts
-        const provider = new BrowserProvider(window.ethereum);
-        await provider.send("eth_requestAccounts", []);
-        const signer = await provider.getSigner();
-        const address = await signer.getAddress();
-
-        setWalletConnected(true);
-        setWalletAddress(address);
-      } catch (err) {
-        setWalletConnected(false);
-        setWalletAddress(null);
-        alert("Wallet connection failed: " + err.message);
-      }
-    } else {
+  const handleConnectWallet = useCallback(async () => {
+    if (!window.ethereum) {
       alert("MetaMask is not installed. Please install MetaMask and try again.");
-    }
-  };
-
-  // Helper to get total ETH value in cart (parse price correctly)
-  const getTotalEth = () => {
-    // Use parseFloat and sum as floats, not integers
-    return cart.reduce((sum, item) => {
-      let price = 0;
-      if (typeof item.price === "string") {
-        // Support scientific notation and very small numbers
-        const match = item.price.match(/[\d.eE-]+/);
-        price = match ? parseFloat(match[0]) : 0;
-      } else {
-        price = Number(item.price) || 0;
-      }
-      return sum + price * (item.quantity || 1);
-    }, 0);
-  };
-
-  // Send ETH from connected wallet to owner on Buy
-  const handleBuy = async () => {
-    if (!walletConnected || !walletAddress) {
-      alert("Please connect your MetaMask wallet before buying.");
       return;
     }
 
-    const hasEth = cart.some(item => typeof item.price === "string" && item.price.includes("ETH"));
-    if (!hasEth) {
-      alert("Only ETH payments are supported for this demo.");
+    try {
+      const provider = new BrowserProvider(window.ethereum);
+      await provider.send("eth_requestAccounts", []);
+      const signer = await provider.getSigner();
+      const address = await signer.getAddress();
+
+      setWalletConnected(true);
+      setWalletAddress(address);
+    } catch (err) {
+      setWalletConnected(false);
+      setWalletAddress(null);
+      alert("Wallet connection failed: " + err.message);
+    }
+  }, []);
+
+  const getTotalEth = useCallback(() => {
+    return cart.reduce((sum, item) => {
+      const price = typeof item.price === "string" 
+        ? parseFloat(item.price.match(/[\d.eE-]+/)?.[0] || 0)
+        : Number(item.price) || 0;
+      return sum + price * (item.quantity || 1);
+    }, 0);
+  }, [cart]);
+
+  const handleBuy = useCallback(async () => {
+    if (!walletConnected || !walletAddress) {
+      alert("Please connect your MetaMask wallet before buying.");
       return;
     }
 
@@ -91,29 +113,20 @@ export default function Navbar({ onBuy }) {
 
     setBuying(true);
     try {
-      // Create a BrowserProvider instance (Ethers v6+)
       const provider = new BrowserProvider(window.ethereum);
       const signer = await provider.getSigner();
 
-      // Prepare transaction parameters
       const tx = {
         to: OWNER_ADDRESS,
-        value: parseEther(totalEth.toFixed(18)) // Fix: round to 18 decimals
+        value: parseEther(totalEth.toFixed(18))
       };
 
-      // Send transaction
       const transaction = await signer.sendTransaction(tx);
-
-      // Wait for transaction confirmation
       const receipt = await transaction.wait(1);
 
-      // Detailed success handling
       if (receipt.status === 1) {
         alert(`Payment successful! Transaction Hash: ${transaction.hash}`);
-        
-        if (typeof onBuy === "function") {
-          onBuy(cart.map(item => item.id));
-        }
+        onBuy?.(cart.map(item => item.id));
         clearCart();
         setCartModalOpen(false);
       } else {
@@ -125,52 +138,15 @@ export default function Navbar({ onBuy }) {
     } finally {
       setBuying(false);
     }
-  };
+  }, [walletConnected, walletAddress, getTotalEth, cart, onBuy, clearCart]);
 
-  const icons = {
-    home: (
-      <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
-      </svg>
-    ),
-    search: (
-      <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-      </svg>
-    ),
-    about: (
-      <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-      </svg>
-    ),
-    cart: (
-      <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
-      </svg>
-    ),
-    wallet: (
-      <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
-      </svg>
-    ),
-    menu: (
-      <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-      </svg>
-    ),
-    close: (
-      <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-      </svg>
-    )
-  };
-
-  const navItems = [
+  // Memoize nav items to prevent unnecessary re-renders
+  const navItems = useMemo(() => [
     { name: "Home", icon: icons.home },
     { name: "Explore", icon: icons.search },
     { name: "Contact US", icon: icons.about },
     { name: "Cart", icon: icons.cart, isCart: true, badge: cart.length > 0 ? cart.length : null },
-  ];
+  ], [cart.length]);
 
   return (
     <div>
